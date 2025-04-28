@@ -1,84 +1,70 @@
-// server.js
-// A simple Express.js backend for a Todo list API
-
 const express = require('express');
-const path = require('path')
+const path = require('path');
+const db = require('./db'); // import the database connection
 const app = express();
 const port = 3000;
 
-// Middleware to parse JSON requests
+// Middleware
 app.use(express.json());
+app.use(express.static('public'));
 
-// Middle ware to inlcude static content
-app.use(express.static('public'))
-
-// In-memory array to store todo items
-let todos = [
-  {
-  id: 0,
-  name: 'nina',
-  priority: 'high',
-  isComplete: false,
-  isFun: false
-}
-];
-let nextId = 1;
-
-// server index.html
+// serve index.html
 app.get('/', (req, res) => {
-    res.sendFile('index.html')
-})
-
-// GET all todo items
-app.get('/todos', (req, res) => {
-  res.json(todos);
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// GET a specific todo item by ID
-app.get('/todos/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const todo = todos.find(item => item.id === id);
-  if (todo) {
-    res.json(todo);
-  } else {
-    res.status(404).json({ message: 'Todo item not found' });
+// GET all todos
+app.get('/todos', async (req, res) => {
+  try {
+    const todos = await db.getAllTodos();
+    res.json(todos);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching todos' });
   }
 });
 
-// POST a new todo item
-app.post('/todos', (req, res) => {
-  const { name, priority = 'low', isFun } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ message: 'Name is required' });
-  }
-
-  const newTodo = {
-    id: nextId++,
-    name,
-    priority,
-    isComplete: false,
-    isFun
-  };
-  
-  todos.push(newTodo);
-  res.status(201).json(newTodo);
-});
-
-// DELETE a todo item by ID
-app.delete('/todos/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const index = todos.findIndex(item => item.id === id);
-
-  if (index !== -1) {
-    todos.splice(index, 1);
-    res.json({ message: `Todo item ${id} deleted.` });
-  } else {
-    res.status(404).json({ message: 'Todo item not found' });
+// GET a specific todo
+app.get('/todos/:id', async (req, res) => {
+  try {
+    const todo = await db.getTodoById(req.params.id);
+    if (todo) {
+      res.json(todo);
+    } else {
+      res.status(404).json({ message: 'Todo item not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching todo' });
   }
 });
 
-// Start the server
+// POST a new todo
+app.post('/todos', async (req, res) => {
+  try {
+    const { name, priority = 'low', isFun = 'true' } = req.body;
+    if (!name) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    const newTodo = await db.addTodo(name, priority, isFun);
+    res.status(201).json(newTodo);
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding todo' });
+  }
+});
+
+// DELETE a todo
+app.delete('/todos/:id', async (req, res) => {
+  try {
+    const success = await db.deleteTodo(req.params.id);
+    if (success) {
+      res.json({ message: 'Todo deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Todo item not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting todo' });
+  }
+});
+
 app.listen(port, () => {
-  console.log(`Todo API server running at http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
